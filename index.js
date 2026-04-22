@@ -38,10 +38,23 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+   
     const db=client.db('eventDB')
-    const eventCollection=db.collection('event')
+    const eventCollection=db.collection('events')
 
+    // save events data
+    app.post('/events',async(req,res)=>{
+       const eventData=req.body;
+       console.log(eventData)
+       const result=await eventCollection.insertOne(eventData)
+       res.send(result)
+    })
+
+    // get all event for db
+    app.get('/events',async(req,res)=>{
+        const result=await eventCollection.find().toArray()
+        res.send(result)
+    })
 
 
 
