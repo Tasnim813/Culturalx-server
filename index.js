@@ -149,6 +149,16 @@ app.get('/bookings',async (req, res) => {
   res.send(result)
 })
 
+// Get all users (Admin only ideally)
+app.get('/users', async (req, res) => {
+  try {
+    const result = await userCollection.find().toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to fetch users' });
+  }
+});
+
 // payment
 app.post('/create-checkout-session', async (req, res) => {
   try {
