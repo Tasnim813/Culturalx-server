@@ -57,6 +57,8 @@ const userCollection=db.collection('user')
         res.send(result)
     })
 
+
+
 // 3. Get Single Event by ID (GET)
     app.get('/events/:id', async (req, res) => {
       const id = req.params.id;
@@ -68,6 +70,19 @@ const userCollection=db.collection('user')
       const result = await eventCollection.findOne(query);
       res.send(result);
     });
+
+    app.get('/stats', async (req, res) => {
+
+    const totalEvents = await eventCollection.countDocuments();
+    const totalBookings = await bookingCollection.countDocuments();
+    const totalUsers = await userCollection.countDocuments();
+
+    res.send({
+        totalEvents,
+        totalBookings,
+        totalUsers
+    });
+});
 // booking data post
    app.post('/bookings', async (req, res) => {
   try {
@@ -158,6 +173,12 @@ app.get('/users', async (req, res) => {
     res.status(500).send({ message: 'Failed to fetch users' });
   }
 });
+
+  app.get('/user/role/:email',async(req,res)=>{
+    const email=req.params.email;
+    const result=await userCollection.findOne({email})
+    res.send({role:result?.role})
+   })
 
 // payment
 app.post('/create-checkout-session', async (req, res) => {
