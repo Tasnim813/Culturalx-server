@@ -1,26 +1,26 @@
+require('dotenv').config()
 const express = require('express')
 const cors=require('cors')
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const app = express()
-require('dotenv').config()
+
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT|| 3000
 
 
 // middleware
 app.use(express.json());
-app.use(cors());
+// app.use(cors());
 
-// app.use(
-//   cors({
-//     origin: [
-//       'http://localhost:5173',
-//       'http://localhost:5174',
-//       'https://localchefbazar-client.vercel.app',
-//     ],
-//     credentials: true,
-//     optionSuccessStatus: 200,
-//   })
-// )
+app.use(
+  cors({
+    origin: [
+     process.env.CLIENT_DOMAIN
+    ],
+    credentials: true,
+    optionSuccessStatus: 200,
+  })
+)
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6t2ckxo.mongodb.net/?appName=Cluster0`;
@@ -42,6 +42,7 @@ async function run() {
     const db=client.db('eventDB')
     const eventCollection=db.collection('events')
 const bookingCollection = db.collection('bookings')
+const userCollection=db.collection('user')
     // save events data
     app.post('/events',async(req,res)=>{
        const eventData=req.body;
@@ -99,7 +100,7 @@ const bookingCollection = db.collection('bookings')
     });
   }
 });
-
+// customer own booking api
 app.get('/bookings/:email', async (req, res) => {
   const email = req.params.email
 
@@ -108,6 +109,124 @@ app.get('/bookings/:email', async (req, res) => {
   const result = await bookingCollection.find(query).toArray()
 
   res.send(result)
+})
+
+app.get('/bookings',async (req, res) => {
+  try {
+    const result = await bookingCollection.find().toArray()
+    res.send(result)
+  } catch (err) {
+    res.status(500).send({ error: 'Failed to fetch bookings' })
+  }
+})
+
+// post user data
+        app.post('/user',async(req,res)=>{
+  const userData=req.body;
+  userData.created_at= new Date().toISOString()
+  userData.last_loggedIn= new Date().toISOString()
+  userData.role='customer'
+  userData.status='active'
+   
+  const query={
+    email: userData.email
+
+  }
+  const alreadyExist=await userCollection.findOne(query)
+  console.log('User Already Exist ---->',!!alreadyExist)
+  if(alreadyExist){
+    console.log("update user Info")
+    const   result= await userCollection.updateOne(query,{
+      $set:{
+        last_loggedIn: new Date().toISOString(),
+      },
+    })
+    return res.send(result)
+  }
+  console.log('Saving new user')
+  const result=await userCollection.insertOne(userData)
+  
+  res.send(result)
+})
+
+// payment
+app.post('/create-checkout-session', async (req, res) => {
+  try {
+    const paymentInfo = req.body
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: paymentInfo?.eventName,
+            },
+            unit_amount: paymentInfo?.price * 100,
+          },
+          quantity: paymentInfo?.quantity,
+        },
+      ],
+      mode: 'payment',
+
+      // customer email
+      customer_email: paymentInfo.customer.email,
+
+      metadata: {
+        orderId: paymentInfo.orderId,
+        customerEmail: paymentInfo.customer.email,
+      },
+
+      success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_DOMAIN}/dashboard/my-orders`,
+    })
+
+    res.send({ url: session.url })
+  } catch (error) {
+    console.error(error)
+    res.status(500).send({ error: 'Stripe session failed' })
+  }
+})
+
+app.post('/payment-success', async (req, res) => {
+  try {
+    const { sessionId } = req.body
+
+    if (!sessionId) {
+      return res.status(400).send({ error: 'sessionId missing' })
+    }
+
+    // Stripe session fetch
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+
+    const orderId = session?.metadata?.orderId
+
+    if (!orderId) {
+      return res.status(400).send({ error: 'Order ID not found' })
+    }
+
+    // update order payment status
+    const result = await bookingCollection.updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          paymentStatus: 'paid',
+          bookingStatus: 'confirmed',
+          paymentTime: new Date(),
+        },
+      }
+    )
+
+    res.send({
+      success: true,
+      message: 'Payment updated successfully',
+      result,
+    })
+  } catch (error) {
+    console.error('Payment Success Error:', error)
+    res.status(500).send({ error: 'Payment update failed' })
+  }
 })
 
     // Send a ping to confirm a successful connection
