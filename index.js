@@ -2,7 +2,7 @@ const express = require('express')
 const cors=require('cors')
 const app = express()
 require('dotenv').config()
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT|| 3000
 
 
@@ -41,7 +41,7 @@ async function run() {
    
     const db=client.db('eventDB')
     const eventCollection=db.collection('events')
-
+const bookingCollection = db.collection('bookings')
     // save events data
     app.post('/events',async(req,res)=>{
        const eventData=req.body;
@@ -56,7 +56,59 @@ async function run() {
         res.send(result)
     })
 
+// 3. Get Single Event by ID (GET)
+    app.get('/events/:id', async (req, res) => {
+      const id = req.params.id;
+      // ObjectId valid kina check kora bhalo practice
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid ID format" });
+      }
+      const query = { _id: new ObjectId(id) };
+      const result = await eventCollection.findOne(query);
+      res.send(result);
+    });
+// booking data post
+   app.post('/bookings', async (req, res) => {
+  try {
+    const booking = req.body;
 
+    console.log("Booking received:", booking);
+
+    // validation
+    if (!booking?.eventId || !booking?.userEmail) {
+      return res.status(400).send({ message: "Missing required fields" });
+    }
+
+    // safe conversion
+    booking.price = Number(booking.price);
+    booking.quantity = Number(booking.quantity);
+
+    const result = await bookingCollection.insertOne(booking);
+
+    res.send({
+      success: true,
+      insertedId: result.insertedId
+    });
+
+  } catch (error) {
+    console.error("Booking Error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+});
+
+app.get('/bookings/:email', async (req, res) => {
+  const email = req.params.email
+
+  const query = { userEmail: email }
+
+  const result = await bookingCollection.find(query).toArray()
+
+  res.send(result)
+})
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
