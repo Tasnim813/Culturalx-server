@@ -9,18 +9,29 @@ const port = process.env.PORT|| 3000
 
 
 // middleware
-app.use(express.json());
-// app.use(cors());
+// app.use(express.json());
+// app.use(
+//   cors({
+//     origin: process.env.CLIENT_DOMAIN,
+//     credentials: true,
+//   })
+// );
 
+// middleware
 app.use(
   cors({
-    origin: [
-     process.env.CLIENT_DOMAIN
-    ],
+   origin: [
+  'http://localhost:5173',
+  'https://culturalx-client.vercel.app'
+],
     credentials: true,
-    optionSuccessStatus: 200,
+    optionsSuccessStatus: 200,
   })
 )
+app.use(express.json())
+
+
+
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6t2ckxo.mongodb.net/?appName=Cluster0`;
@@ -38,7 +49,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-   
+  //  await client.connect();
     const db=client.db('eventDB')
     const eventCollection=db.collection('events')
 const bookingCollection = db.collection('bookings')
@@ -209,8 +220,8 @@ app.post('/create-checkout-session', async (req, res) => {
         customerEmail: paymentInfo.customer.email,
       },
 
-      success_url: `${process.env.CLIENT_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_DOMAIN}/dashboard/my-orders`,
+      success_url: `https://culturalx-client.vercel.app/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `https://culturalx-client.vercel.app/dashboard/my-orders`,
     })
 
     res.send({ url: session.url })
@@ -261,8 +272,8 @@ app.post('/payment-success', async (req, res) => {
 })
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     
     // await client.close();
